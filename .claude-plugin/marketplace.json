@@ -7,7 +7,7 @@
     {
       "name": "react-rules-plugin",
       "source": "./plugins/react-rules-plugin",
-      "description": "React開発ルールプラグイン（コンポーネント規約、カスタムフック、Storybook）"
+      "description": "React開発ルールプラグイン（コンポーネント、カスタムフック、Storybook）"
     }
   ]
 }

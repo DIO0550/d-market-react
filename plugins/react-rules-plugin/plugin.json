@@ -1,7 +1,7 @@
 {
   "name": "react-rules-plugin",
   "version": "1.0.0",
-  "description": "React開発ルールプラグイン（コーディング規約、コンポーネント、カスタムフック、Storybook、TDD、テスト）",
+  "description": "React開発ルールプラグイン（コンポーネント、カスタムフック、Storybook）",
   "author": {
     "name": "DIO0550"
   },
