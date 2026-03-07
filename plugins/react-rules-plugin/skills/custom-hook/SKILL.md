@@ -51,8 +51,19 @@ Reactカスタムフックは「見た目を持たない再利用ロジック」
 - consumerが必要とする最小APIだけ返す。内部stateや生のsetterをむやみに公開しない
 - booleanは `isOpen` `isLoading` `hasNextPage` のように意味が読める名前にする
 - 公開関数は「何が起きるか」が分かる命名にする。`setVisible(true)` より `open()`
+- 返す関数を consumer が依存配列や memo 境界で使うなら、参照安定性を意識する
+- ただし参照安定性が不要な箇所まで、機械的に `useCallback` / `useMemo` を増やさない
 - derived valueは `useEffect + setState` で保持せず、render中に導出する
 - tupleを返すなら、要素数は2-3個までを目安にし、callerが分割代入だけで意味を把握できる形にする
+
+## UI との境界
+
+- hook の中で toast / modal / tooltip などの UI 表示を直接実行しない
+- hook は `data` `error` `status` `submit` のような状態と操作を返す
+- 失敗時や成功時に副作用が必要なら、`onError` / `onSuccess` を options で受けて実行してよい
+- callback 注入で component を薄くできるなら許容する。ただし hook の責務が UI 都合に引っ張られすぎないようにする
+- 同じ UI 連携を複数画面で使うなら、base hook の上に wrapper hook を重ねて画面都合を閉じ込める
+- callback を受けても、hook 自体は UI ライブラリや文言に依存しない形を保つ
 
 ## useState と useReducer の使い分け
 
@@ -95,11 +106,21 @@ export const useDisclosure = (initialOpen = false): UseDisclosureResult => {
 - ユーザー操作起点の処理は、まずevent handlerで実行できないか考える
 - 依存配列の問題を隠すための `eslint-disable` はしない
 
+## stale closure の扱い
+
+- state の前回値から更新できるなら、まず関数更新形式を使う
+- effect 内で最新の props/state を読みたいが effect 自体は再同期したくない場合、使える環境では `useEffectEvent` を検討する
+- `useEffectEvent` が使えない場合だけ `useRef` で最新値を保持する。ref 同期は最後の手段として扱う
+- timer や subscription を持つ hook は、古い値をキャプチャしないことをテストで確認する
+- `useRef` は再レンダーでは保持されるが再マウントではリセットされる。timer や非同期処理と組み合わせる場合は cleanup を確実に書く
+
 ## 非同期hook設計
 
 - 最低限 `data` `isLoading` `error` を検討する
 - 再取得可能なら `refetch` を返す
 - hookをAPIごとに機械的に分けない。endpoint単位ではなく、画面や機能が必要とする取得・再取得・キャンセルのまとまりで設計する
+- React 19 系のフォーム action を使う画面では、独自hookの前に `useActionState` / `useFormStatus` で足りないか確認する
+- 楽観更新を手動実装する前に `useOptimistic` で置き換えられないか確認する
 - mount時に必ず必要なデータだけ `useEffect` で自動取得する。ユーザー操作起点の取得まで mount時実行に寄せない
 - 検索、送信、ページ送りのようにユーザー操作で始まる処理は `search()` `submit()` `loadNext()` のような公開関数から実行する
 - 成功/失敗時の状態遷移を呼び出し側から追える形にする
@@ -163,6 +184,9 @@ export const useUserSearch = (): UseUserSearchResult => {
 - unmount時に cleanup されるか
 - 古い非同期結果が新しい状態を上書きしないか
 - API連続呼び出し時に、意図した競合制御になっているか
+- timer や subscription を持つ hook で stale closure が起きないか
+- Strict Mode の二重実行でも cleanup と再購読が破綻しないか
+- 再マウント時に ref / state が意図どおり初期化されるか
 
 ```typescript
 import { renderHook, waitFor } from "@testing-library/react";
@@ -183,6 +207,7 @@ test("後から呼んだ search の結果を採用する", async () => {
 - callbackの内部実装や private state に依存したテストを書かない
 - effect cleanup が重要なhookでは `unmount` を使って副作用解除を確認する
 - latest-wins を採るなら、遅いレスポンスが新しい結果を上書きしないことを確認する
+- 返す関数の参照安定性が重要な hook では、依存が変わらない限り同一参照を保つことを確認する
 
 ## アンチパターン
 
@@ -191,6 +216,8 @@ test("後から呼んだ search の結果を採用する", async () => {
 - mount/unmount 専用ではない effect に `eslint-disable-next-line react-hooks/exhaustive-deps` を付けて依存配列問題を隠す
 - 返り値に `foo`, `setFoo`, `bar`, `setBar`, `baz`, `setBaz` を並べた巨大hookを作る
 - endpointごとに `useFetchXxx` を量産し、画面側で複数hookの結果を `useEffect` でつなぎ込む
+- setter を使わない定数保持のために `useState` を使う
+- hook 内で `toast.error("...")` のような UI 実装を直書きする
 - libraryの生APIをそのまま漏らし、hookとしての責務がない
 - consumerが毎回同じ組み立てコードを書くほど公開APIが薄い
 - まだ1箇所でしか使っていないのに、将来の拡張を見越して分岐やoptionsを増やし続ける
@@ -203,4 +230,5 @@ test("後から呼んだ search の結果を採用する", async () => {
 - cleanup漏れ、競合、stale closure の余地がないか
 - `useState` より `useReducer` が適切な状態遷移なのに、更新が散らばっていないか
 - endpoint単位の分割で、かえって画面側の `useEffect` オーケストレーションが増えていないか
+- hook が UI を直接知りすぎていないか。必要なら callback 注入や wrapper hook に分けられないか
 - componentを薄くしつつ、挙動を隠しすぎていないか
