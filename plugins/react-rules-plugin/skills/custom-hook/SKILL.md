@@ -60,10 +60,20 @@ Reactカスタムフックは「見た目を持たない再利用ロジック」
 
 - hook の中で toast / modal / tooltip などの UI 表示を直接実行しない
 - hook は `data` `error` `status` `submit` のような状態と操作を返す
+- UIにAPIレスポンスの生shapeを漏らさない。hook内で画面が必要な ViewModel / domain model に正規化して返す
+- transport層の都合（snake_case、ネスト、HTTP status、vendor固有フィールド）をhook公開APIに含めない
+- UIが業務上不要な機微情報（内部ID、権限判定の詳細理由、監査メタデータなど）を参照できない設計にする
 - 失敗時や成功時に副作用が必要なら、`onError` / `onSuccess` を options で受けて実行してよい
 - callback 注入で component を薄くできるなら許容する。ただし hook の責務が UI 都合に引っ張られすぎないようにする
 - 同じ UI 連携を複数画面で使うなら、base hook の上に wrapper hook を重ねて画面都合を閉じ込める
 - callback を受けても、hook 自体は UI ライブラリや文言に依存しない形を保つ
+
+## React Server Components / SSR 境界
+
+- `useState` / `useEffect` を使うhookはClient Component専用。RSC環境では呼び出し側に `"use client"` が必要
+- hook内で `window` `document` `localStorage` などbrowser APIを使う場合は、SSRで実行されない前提を明示する
+- 初期値がSSRとCSRでずれる可能性がある場合は、初回描画で不整合が起きない設計にする（例: media query の初期fallbackを固定する）
+- 「サーバーで取得できるデータ」は可能な限りサーバー側で解決し、hookはクライアント同期やインタラクション責務に寄せる
 
 ## useState と useReducer の使い分け
 
@@ -128,6 +138,10 @@ export const useDisclosure = (initialOpen = false): UseDisclosureResult => {
 - API連続呼び出しがあり得るなら、latest-wins / queue / ignore duplicate のどれかを決める
 - 連続呼び出し時は `AbortController`、request id、実行中フラグなどで競合とstale responseを防ぐ
 - 1回目のレスポンスが2回目を上書きしないことを前提に設計・テストする
+- unmount後に state 更新しないように、`AbortController` や有効フラグで終了処理を統一する
+- `isLoading` と `error` の複数booleanが増えたら、`status`（`"idle" | "loading" | "success" | "error"`）で表現できないか検討する
+- リトライ方針（即時 / backoff / 手動）を決め、公開API名（`retry` など）で意図を固定する
+- APIレスポンス変換（DTO -> ViewModel）は純粋関数として分離し、hook本体には状態遷移と制御フローだけを残す
 
 ```typescript
 type UseUserSearchResult = {
@@ -208,6 +222,13 @@ test("後から呼んだ search の結果を採用する", async () => {
 - effect cleanup が重要なhookでは `unmount` を使って副作用解除を確認する
 - latest-wins を採るなら、遅いレスポンスが新しい結果を上書きしないことを確認する
 - 返す関数の参照安定性が重要な hook では、依存が変わらない限り同一参照を保つことを確認する
+- debounce / throttle / interval を含む hook では fake timer を使い、時間経過に対する挙動を検証する
+
+## 型設計
+
+- 公開する `error` 型は `unknown` のまま流さず、利用側が扱える型に正規化する
+- 戻り値オブジェクトは `type UseXxxResult = { ... }` として名前付きで定義し、API差分レビューをしやすくする
+- optionsは破壊的変更に備えてobjectで受け、将来の追加が呼び出し側の位置引数破壊を起こさない形にする
 
 ## アンチパターン
 
@@ -219,6 +240,7 @@ test("後から呼んだ search の結果を採用する", async () => {
 - setter を使わない定数保持のために `useState` を使う
 - hook 内で `toast.error("...")` のような UI 実装を直書きする
 - libraryの生APIをそのまま漏らし、hookとしての責務がない
+- APIレスポンスDTOをそのまま返し、UIがtransport都合のフィールド名や構造に依存している
 - consumerが毎回同じ組み立てコードを書くほど公開APIが薄い
 - まだ1箇所でしか使っていないのに、将来の拡張を見越して分岐やoptionsを増やし続ける
 
@@ -231,4 +253,5 @@ test("後から呼んだ search の結果を採用する", async () => {
 - `useState` より `useReducer` が適切な状態遷移なのに、更新が散らばっていないか
 - endpoint単位の分割で、かえって画面側の `useEffect` オーケストレーションが増えていないか
 - hook が UI を直接知りすぎていないか。必要なら callback 注入や wrapper hook に分けられないか
+- UIがAPIの生レスポンスshapeや機微情報に依存していないか（必要最小限のViewModelだけ公開しているか）
 - componentを薄くしつつ、挙動を隠しすぎていないか
