@@ -1,6 +1,6 @@
 ---
 name: storybook
-description: Storybook開発ルール。CSF3.0形式、Meta/StoryObj型定義、Story種類（Default/AllProps/EdgeCases + UI状態）、argTypes/controls/play/decoratorsの規約を定義。Storybook作成時に参照。
+description: Storybook開発ルール。CSF3.0形式、Meta/StoryObj型定義、Story種類（Default/AllProps/EdgeCases + UI状態）、argTypes/controls/decorators、play functionによるインタラクションテスト（step・await・canvasクエリ）の規約を定義。Storybook作成時に参照。
 ---
 
 # Storybook開発ルール
@@ -47,6 +47,11 @@ StorybookのStory作成規約を定義するスキル。
 - `play` はUI操作の確認（クリック・入力・フォーカス）までに限定する
 - 重い統合テストや外部通信検証は Storybook に持ち込まない
 - `play` を書く場合は、ユーザー視点のアサーションを優先する
+- 要素の取得は `canvas` のTesting Libraryクエリを使い、`getByRole` を第一候補にする（Testing Libraryのクエリ優先順位と同じ思想で一貫させる）
+- `userEvent` の操作と `expect` アサーションは必ず `await` する（awaitによりInteractionsパネルで各ステップをログ・デバッグできる）
+- 長い `play` は `step()` でユーザー行動単位にグルーピングし、可読性を保つ
+- コールバックpropsの検証は `fn()` スパイを `args` に渡し、呼び出しと引数をアサートする
+- レンダー前のセットアップ（日時モック等）が必要な場合は `mount` を使う。Story間で共有するセットアップ・後始末は `beforeEach` とクリーンアップ関数で行う
 
 ## 基本例
 
