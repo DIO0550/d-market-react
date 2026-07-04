@@ -18,8 +18,10 @@ Reactカスタムフックは「見た目を持たない再利用ロジック」
 
 ## 基本ルール
 
-- 必ず `use` で始める
+- 必ず `use` で始める。逆に、内部でhooksを呼ばない関数に `use` プレフィックスを付けない
 - 1 hook = 1責務。取得とモーダル制御のような別責務を混ぜない
+- hookが共有するのは「statefulなロジック」であってstateそのものではない。各呼び出しは独立したstateを持つ。state自体の共有が必要ならリフトアップやContextを使う
+- `useMount` / `useUpdateEffect` のような汎用ライフサイクルラッパーは作らない。Reactの依存追跡（`exhaustive-deps` lint）を迂回し、バグの発見を妨げる。具体的なユースケース単位（`useChatRoom` 等）で切り出す
 - hookの単位はAPI endpointではなく、画面や機能が必要とする振る舞いの単位で決める
 - hookはUIを知らない。DOM参照、class名、JSXを公開APIに含めない
 - 戻り値は原則object。tupleは要素数が少なく、各要素の役割が慣習的に明確な小さいAPIだけに限る
@@ -106,6 +108,7 @@ export const useDisclosure = (initialOpen = false): UseDisclosureResult => {
 ## effectのルール
 
 - `useEffect` は外部システムとの同期にだけ使う
+- 外部ストアの購読は手書きの `useEffect` + `useState` ではなく `useSyncExternalStore` を使う。tearingを防ぎ、SSRも正しく扱える
 - mount時/unmount時だけでよい処理は `useEffect(() => { ...; return cleanup; }, [])` を使ってよい
 - ただし `[]` は「初回だけ実行したいから」ではなく、「現在のprops/stateに追従する必要がない外部同期」に限る
 - mount/unmount 専用であることが明確なら、`react-hooks/exhaustive-deps` の無効化は許容できる。その場合は「なぜ追従不要か」をコメントで残す
