@@ -73,6 +73,8 @@ export const Default: Story = {
 };
 ```
 
+> **補足**: Storybook v8 では `@storybook/test`、Storybook v9 以降では `storybook/test` からインポートする。
+
 ## 禁止事項
 
 - Story内でビジネスロジックを実装しない

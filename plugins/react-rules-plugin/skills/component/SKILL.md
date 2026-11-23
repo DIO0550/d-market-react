@@ -99,6 +99,8 @@ Reactコンポーネントの規約を定義するスキル。
 
 ## React 19 の書き方
 
+> **適用前提**: `package.json` で React 19 以降を採用しているプロジェクトに適用（React 18 以前では `forwardRef` / `<Context.Provider>` 等を維持）。
+
 - 新規コードで `forwardRef` を使わない。`ref` は通常のpropとして受け取る
 - Context Providerは `<Context.Provider value={...}>` ではなく `<Context value={...}>` と書く
 - refコールバックはクリーンアップ関数を返す形で書く（アンマウント時の `null` 呼び出しに依存しない）
