@@ -5,7 +5,7 @@ description: Reactカスタムフック開発ルール。いつhookに切り出�
 
 # カスタムフック開発ルール
 
-Reactカスタムフックは「見た目を持たない再利用ロジック」を切り出すためのもの。  
+Reactカスタムフックは「見た目を持たない再利用ロジック」を切り出すためのもの。
 コンポーネントを薄くするために使うが、抽象化のための抽象化はしない。
 
 ## まず判断すること
@@ -133,7 +133,7 @@ export const useDisclosure = (initialOpen = false): UseDisclosureResult => {
 - 再取得可能なら `refetch` を返す
 - hookをAPIごとに機械的に分けない。endpoint単位ではなく、画面や機能が必要とする取得・再取得・キャンセルのまとまりで設計する
 - React 19 系のフォーム action を使う画面では、独自hookの前に `useActionState` / `useFormStatus` で足りないか確認する
-- 楽観更新を手動実装する前に `useOptimistic` で置き換えられないか確認する
+- 楽観更新を手動実装する前に（React 19 以降であれば）`useOptimistic` で置き換えられないか確認する
 - mount時に必ず必要なデータだけ `useEffect` で自動取得する。ユーザー操作起点の取得まで mount時実行に寄せない
 - 検索、送信、ページ送りのようにユーザー操作で始まる処理は `search()` `submit()` `loadNext()` のような公開関数から実行する
 - 成功/失敗時の状態遷移を呼び出し側から追える形にする
@@ -147,6 +147,11 @@ export const useDisclosure = (initialOpen = false): UseDisclosureResult => {
 - APIレスポンス変換（DTO -> ViewModel）は純粋関数として分離し、hook本体には状態遷移と制御フローだけを残す
 
 ```typescript
+const toError = (value: unknown): Error =>
+  value instanceof Error
+    ? value
+    : new Error("ユーザーの検索に失敗しました", { cause: value });
+
 type UseUserSearchResult = {
   users: User[];
   isLoading: boolean;
@@ -159,6 +164,14 @@ export const useUserSearch = (): UseUserSearchResult => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const latestRequestIdRef = useRef(0);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const search = useCallback(async (keyword: string) => {
     const requestId = latestRequestIdRef.current + 1;
@@ -170,19 +183,19 @@ export const useUserSearch = (): UseUserSearchResult => {
     try {
       const nextUsers = await searchUsers(keyword);
 
-      if (latestRequestIdRef.current !== requestId) {
+      if (!isMountedRef.current || latestRequestIdRef.current !== requestId) {
         return;
       }
 
       setUsers(nextUsers);
-    } catch (nextError) {
-      if (latestRequestIdRef.current !== requestId) {
+    } catch (nextError: unknown) {
+      if (!isMountedRef.current || latestRequestIdRef.current !== requestId) {
         return;
       }
 
-      setError(nextError as Error);
+      setError(toError(nextError));
     } finally {
-      if (latestRequestIdRef.current === requestId) {
+      if (isMountedRef.current && latestRequestIdRef.current === requestId) {
         setIsLoading(false);
       }
     }
